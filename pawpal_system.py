@@ -25,23 +25,26 @@ class Owner:
     
     def get_available_time(self) -> int:
         """Returns available time in minutes."""
-        pass
+        return self.available_time_per_day
     
     def set_preferences(self, preferences: Dict[str, any]) -> None:
         """Update owner preferences."""
-        pass
+        self.preferences.update(preferences)
     
     def get_info(self) -> str:
         """Return owner information as string."""
-        pass
+        return f"Owner: {self.name} | Available time: {self.available_time_per_day} min/day | Pets: {len(self.pets)}"
     
     def add_pet(self, pet: 'Pet') -> None:
         """Add a pet to the owner's collection."""
-        pass
+        self.pets.append(pet)
     
     def get_all_tasks(self) -> List['Task']:
         """Get all tasks from all pets."""
-        pass
+        all_tasks = []
+        for pet in self.pets:
+            all_tasks.extend(pet.tasks)
+        return all_tasks
 
 
 @dataclass
@@ -57,19 +60,26 @@ class Pet:
     
     def get_info(self) -> str:
         """Return pet information as string."""
-        pass
+        return f"{self.name} ({self.pet_type}, {self.age} years old) | Tasks: {len(self.tasks)}"
     
     def update_preferences(self, preferences: Dict[str, any]) -> None:
         """Update pet preferences."""
-        pass
+        self.preferences.update(preferences)
     
     def get_care_needs(self) -> List[str]:
         """Return list of primary care needs based on pet type."""
-        pass
+        care_needs_map = {
+            "dog": ["walk", "feeding", "play", "grooming"],
+            "cat": ["feeding", "litter", "play", "grooming"],
+            "rabbit": ["feeding", "exercise", "cage_clean", "grooming"],
+            "bird": ["feeding", "water", "cage_clean", "social_time"],
+            "hamster": ["feeding", "water", "cage_clean", "exercise"],
+        }
+        return care_needs_map.get(self.pet_type.lower(), ["feeding", "water"])
     
     def add_task(self, task: 'Task') -> None:
         """Add a task to this pet."""
-        pass
+        self.tasks.append(task)
 
 
 @dataclass
@@ -87,27 +97,36 @@ class Task:
     
     def get_duration(self) -> int:
         """Return task duration in minutes."""
-        pass
+        return self.duration
     
     def matches_pet_needs(self, pet: Pet) -> bool:
         """Check if this task is appropriate for a given pet."""
-        pass
+        pet_care_needs = pet.get_care_needs()
+        return self.category in pet_care_needs
     
     def get_urgency_score(self) -> float:
         """Calculate urgency based on priority and frequency."""
-        pass
+        # Higher priority = higher urgency, daily tasks > weekly tasks
+        frequency_multiplier = 1.0
+        if self.frequency == "daily":
+            frequency_multiplier = 1.5
+        elif self.frequency == "weekly":
+            frequency_multiplier = 1.0
+        
+        return self.priority * frequency_multiplier
     
     def is_required_today(self) -> bool:
         """Determine if task should be done today based on frequency."""
-        pass
+        # For now, "daily" and "as needed" are considered required
+        return self.frequency in ["daily", "as needed"]
     
     def mark_complete(self) -> None:
         """Mark the task as completed."""
-        pass
+        self.completed = True
     
     def mark_incomplete(self) -> None:
         """Mark the task as incomplete."""
-        pass
+        self.completed = False
 
 
 @dataclass
@@ -122,23 +141,29 @@ class Schedule:
     
     def add_task(self, task: Task) -> None:
         """Add a task to the schedule."""
-        pass
+        self.tasks.append(task)
+        self.task_order.append(len(self.tasks) - 1)
+        self.total_time += task.duration
     
     def remove_task(self, task: Task) -> None:
         """Remove a task from the schedule."""
-        pass
+        if task in self.tasks:
+            idx = self.tasks.index(task)
+            self.tasks.remove(task)
+            self.task_order.remove(idx)
+            self.total_time -= task.duration
     
     def get_total_duration(self) -> int:
         """Calculate total time for all scheduled tasks."""
-        pass
+        return sum(task.duration for task in self.tasks)
     
     def is_feasible(self) -> bool:
         """Check if schedule fits within owner's available time."""
-        pass
+        return self.get_total_duration() <= self.owner.available_time_per_day
     
     def get_ordered_tasks(self) -> List[Task]:
         """Return tasks in planned order."""
-        pass
+        return [self.tasks[i] for i in self.task_order if i < len(self.tasks)]
 
 
 class Scheduler:
@@ -146,24 +171,67 @@ class Scheduler:
     
     def __init__(self, owner: Owner, pets: List[Pet] = None, tasks: List[Task] = None):
         """Initialize scheduler with owner, pets, and available tasks."""
-        pass
+        self.owner = owner
+        self.pets = pets or owner.pets
+        self.tasks = tasks or owner.get_all_tasks()
     
     def get_tasks_for_today(self) -> List[Task]:
         """Filter tasks applicable for today based on frequency."""
-        pass
+        return [task for task in self.tasks if task.is_required_today()]
     
     def generate_daily_plan(self, target_date: date = None) -> Schedule:
         """Generate optimized daily schedule respecting time and priority constraints."""
-        pass
+        if target_date is None:
+            target_date = date.today()
+        
+        schedule = Schedule(date=target_date, owner=self.owner)
+        today_tasks = self.get_tasks_for_today()
+        arranged_tasks = self.arrange_tasks(self.owner.available_time_per_day, today_tasks)
+        
+        for task in arranged_tasks:
+            schedule.add_task(task)
+        
+        return schedule
     
     def arrange_tasks(self, available_time: int, candidate_tasks: List[Task] = None) -> List[Task]:
         """Sort tasks by urgency and fit within time budget."""
-        pass
+        if candidate_tasks is None:
+            candidate_tasks = self.get_tasks_for_today()
+        
+        # Sort by urgency score (descending) - higher urgency first
+        sorted_tasks = sorted(candidate_tasks, key=lambda t: t.get_urgency_score(), reverse=True)
+        
+        scheduled_tasks = []
+        time_used = 0
+        
+        for task in sorted_tasks:
+            if time_used + task.duration <= available_time:
+                scheduled_tasks.append(task)
+                time_used += task.duration
+        
+        return scheduled_tasks
     
     def explain_reasoning(self, schedule: Schedule) -> str:
         """Generate human-readable explanation of schedule decisions."""
-        pass
+        explanation = f"Daily Schedule for {schedule.date}\n"
+        explanation += "=" * 50 + "\n"
+        
+        if not schedule.tasks:
+            explanation += "No tasks scheduled for today.\n"
+            return explanation
+        
+        explanation += f"Total time allocated: {schedule.get_total_duration()} minutes "
+        explanation += f"(Available: {self.owner.available_time_per_day} minutes)\n\n"
+        
+        for i, task in enumerate(schedule.get_ordered_tasks(), 1):
+            explanation += f"{i}. {task.name} ({task.duration} min) - Priority: {task.priority}/5\n"
+            explanation += f"   Category: {task.category} | Frequency: {task.frequency}\n"
+        
+        if not schedule.is_feasible():
+            explanation += "\n⚠️  WARNING: Schedule exceeds available time!\n"
+        
+        return explanation
     
     def validate_schedule(self, schedule: Schedule) -> bool:
         """Check if schedule is feasible and meets time constraints."""
-        pass
+        return schedule.is_feasible()
