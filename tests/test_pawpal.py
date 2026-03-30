@@ -6,7 +6,7 @@ Uses pytest fixtures for test setup and isolation.
 """
 
 import pytest
-from datetime import date
+from datetime import date, timedelta
 from pawpal_system import Owner, Pet, Task, Schedule, Scheduler
 
 
@@ -618,3 +618,343 @@ class TestIntegration:
         assert len(schedule.tasks) == 2
         assert schedule.is_feasible()
         assert scheduler.validate_schedule(schedule)
+
+
+class TestPhase4Algorithms:
+    """Test Phase 4 algorithms: sorting, filtering, conflict detection, recurring tasks."""
+    
+    @pytest.fixture
+    def setup_for_algorithms(self):
+        """Set up owner with multiple pets and tasks for algorithm testing."""
+        owner = Owner(name="Alice", available_time_per_day=240)
+        
+        dog = Pet(name="Max", pet_type="dog", age=3)
+        cat = Pet(name="Whiskers", pet_type="cat", age=5)
+        owner.add_pet(dog)
+        owner.add_pet(cat)
+        
+        # Create tasks with varying priorities and frequencies
+        task1 = Task(
+            name="Morning Walk", duration=30, priority=5,
+            category="walk", pet_id="Max", frequency="daily"
+        )
+        task2 = Task(
+            name="Cat Feeding", duration=10, priority=4,
+            category="feeding", pet_id="Whiskers", frequency="daily"
+        )
+        task3 = Task(
+            name="Dog Feeding", duration=10, priority=3,
+            category="feeding", pet_id="Max", frequency="daily"
+        )
+        task4 = Task(
+            name="Evening Walk", duration=30, priority=2,
+            category="walk", pet_id="Max", frequency="weekly"
+        )
+        task5 = Task(
+            name="Grooming", duration=45, priority=1,
+            category="grooming", pet_id="Whiskers", frequency="weekly"
+        )
+        
+        dog.add_task(task1)
+        dog.add_task(task3)
+        dog.add_task(task4)
+        cat.add_task(task2)
+        cat.add_task(task5)
+        
+        scheduler = Scheduler(owner)
+        return owner, dog, cat, scheduler
+    
+    def test_sort_by_urgency_orders_by_priority_and_frequency(self, setup_for_algorithms):
+        """Test that sort_by_urgency orders tasks by calculated urgency score."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        all_tasks = owner.get_all_tasks()
+        
+        sorted_tasks = scheduler.sort_by_urgency(all_tasks)
+        
+        # Verify tasks are sorted in descending order of urgency
+        urgency_scores = [task.get_urgency_score() for task in sorted_tasks]
+        assert urgency_scores == sorted(urgency_scores, reverse=True)
+        
+        # Verify highest priority daily tasks come first
+        assert sorted_tasks[0].priority == 5
+        assert sorted_tasks[0].name == "Morning Walk"
+    
+    def test_sort_by_urgency_handles_empty_list(self, setup_for_algorithms):
+        """Test sort_by_urgency with empty task list."""
+        _, _, _, scheduler = setup_for_algorithms
+        sorted_tasks = scheduler.sort_by_urgency([])
+        assert sorted_tasks == []
+    
+    def test_sort_by_time_orders_by_scheduled_time(self, setup_for_algorithms):
+        """Test that sort_by_time orders tasks by scheduled_time."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        
+        # Assign different time slots to tasks
+        all_tasks = owner.get_all_tasks()
+        all_tasks[0].scheduled_time = "09:00"
+        all_tasks[1].scheduled_time = "08:00"
+        all_tasks[2].scheduled_time = "10:00"
+        all_tasks[3].scheduled_time = "07:00"
+        all_tasks[4].scheduled_time = "18:00"
+        
+        sorted_tasks = scheduler.sort_by_time(all_tasks)
+        
+        # Verify tasks are sorted by time
+        times = [task.scheduled_time for task in sorted_tasks]
+        assert times == ["07:00", "08:00", "09:00", "10:00", "18:00"]
+    
+    def test_sort_by_time_handles_none_times(self, setup_for_algorithms):
+        """Test sort_by_time handles tasks with None scheduled_time."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        all_tasks = owner.get_all_tasks()
+        
+        # Some tasks with time, some without
+        all_tasks[0].scheduled_time = "09:00"
+        all_tasks[1].scheduled_time = None
+        all_tasks[2].scheduled_time = "08:00"
+        
+        sorted_tasks = scheduler.sort_by_time(all_tasks)
+        
+        # Tasks without time should be at the end or beginning
+        assert len(sorted_tasks) == len(all_tasks)
+    
+    def test_filter_by_pet_returns_only_specified_pet_tasks(self, setup_for_algorithms):
+        """Test that filter_by_pet returns only tasks for the specified pet."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        all_tasks = owner.get_all_tasks()
+        
+        # Filter for Max's tasks - correct parameter order: pet_name, tasks
+        dog_tasks = scheduler.filter_by_pet("Max", all_tasks)
+        assert len(dog_tasks) == 3
+        assert all(task.pet_id == "Max" for task in dog_tasks)
+        
+        # Filter for Whiskers' tasks
+        cat_tasks = scheduler.filter_by_pet("Whiskers", all_tasks)
+        assert len(cat_tasks) == 2
+        assert all(task.pet_id == "Whiskers" for task in cat_tasks)
+    
+    def test_filter_by_pet_returns_empty_for_nonexistent_pet(self, setup_for_algorithms):
+        """Test filter_by_pet returns empty list for unknown pet."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        all_tasks = owner.get_all_tasks()
+        
+        unknown_tasks = scheduler.filter_by_pet("NonExistent", all_tasks)
+        assert unknown_tasks == []
+    
+    def test_filter_by_completion_status_separates_completed_tasks(self, setup_for_algorithms):
+        """Test that filter_by_completion_status correctly separates tasks."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        all_tasks = owner.get_all_tasks()
+        
+        # Mark some tasks as completed
+        all_tasks[0].mark_complete()
+        all_tasks[2].mark_complete()
+        
+        # Filter completed tasks - correct parameter order: completed_flag, tasks
+        completed = scheduler.filter_by_completion_status(True, all_tasks)
+        assert len(completed) == 2
+        assert all(task.completed for task in completed)
+        
+        # Filter incomplete tasks
+        incomplete = scheduler.filter_by_completion_status(False, all_tasks)
+        assert len(incomplete) == 3
+        assert all(not task.completed for task in incomplete)
+    
+    def test_filter_by_priority_returns_high_priority_tasks(self, setup_for_algorithms):
+        """Test that filter_by_priority filters by priority level."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        all_tasks = owner.get_all_tasks()
+        
+        # Filter for high priority (priority >= 4) - correct parameter order: min_priority, tasks
+        high_priority = scheduler.filter_by_priority(4, all_tasks)
+        assert len(high_priority) == 2
+        assert all(task.priority >= 4 for task in high_priority)
+        
+        # Filter for priority >= 3
+        medium_priority = scheduler.filter_by_priority(3, all_tasks)
+        assert len(medium_priority) == 3
+        assert all(task.priority >= 3 for task in medium_priority)
+    
+    def test_filter_by_priority_handles_edge_cases(self, setup_for_algorithms):
+        """Test filter_by_priority with edge case priority levels."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        all_tasks = owner.get_all_tasks()
+        
+        # Priority >= 5 should only get the highest priority task
+        max_priority = scheduler.filter_by_priority(5, all_tasks)
+        assert len(max_priority) >= 1
+        assert all(task.priority == 5 for task in max_priority)
+        
+        # Priority >= 0 should get all tasks
+        all_with_filter = scheduler.filter_by_priority(0, all_tasks)
+        assert len(all_with_filter) == len(all_tasks)
+    
+    def test_detect_conflicts_identifies_same_time_tasks(self, setup_for_algorithms):
+        """Test that detect_conflicts identifies tasks scheduled at same time."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        
+        # Create a schedule and add tasks with conflicts
+        schedule = Schedule(date.today(), owner)
+        all_tasks = owner.get_all_tasks()
+        
+        # Assign multiple tasks to the same time slot
+        all_tasks[0].scheduled_time = "09:00"
+        all_tasks[1].scheduled_time = "09:00"
+        all_tasks[2].scheduled_time = "10:00"
+        
+        # Add tasks to schedule
+        for task in all_tasks[:3]:
+            schedule.add_task(task)
+        
+        conflicts = scheduler.detect_conflicts(schedule)
+        
+        # Should detect conflicts at 09:00
+        assert len(conflicts) > 0
+        assert any("09:00" in conflict or "CONFLICT" in conflict for conflict in conflicts)
+    
+    def test_detect_conflicts_returns_empty_for_no_conflicts(self, setup_for_algorithms):
+        """Test detect_conflicts returns empty list when no conflicts exist."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        
+        # Create a schedule with no conflicts
+        schedule = Schedule(date.today(), owner)
+        all_tasks = owner.get_all_tasks()
+        
+        # Assign each task a unique time
+        all_tasks[0].scheduled_time = "08:00"
+        all_tasks[1].scheduled_time = "08:30"
+        all_tasks[2].scheduled_time = "09:00"
+        all_tasks[3].scheduled_time = "09:30"
+        all_tasks[4].scheduled_time = "10:00"
+        
+        # Add tasks to schedule
+        for task in all_tasks:
+            schedule.add_task(task)
+        
+        conflicts = scheduler.detect_conflicts(schedule)
+        
+        # Should have no conflicts
+        assert len(conflicts) == 0
+    
+    def test_detect_conflicts_with_multiple_conflict_times(self, setup_for_algorithms):
+        """Test detect_conflicts with multiple time slots having conflicts."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        
+        # Create a schedule with multiple conflict times
+        schedule = Schedule(date.today(), owner)
+        all_tasks = owner.get_all_tasks()
+        
+        # Create conflicts at multiple times
+        all_tasks[0].scheduled_time = "09:00"
+        all_tasks[1].scheduled_time = "09:00"
+        all_tasks[2].scheduled_time = "10:00"
+        all_tasks[3].scheduled_time = "10:00"
+        all_tasks[4].scheduled_time = "11:00"
+        
+        # Add tasks to schedule
+        for task in all_tasks:
+            schedule.add_task(task)
+        
+        conflicts = scheduler.detect_conflicts(schedule)
+        
+        # Should detect multiple conflict times
+        assert len(conflicts) >= 2
+
+    
+    def test_generate_next_occurrence_daily_task(self, setup_for_algorithms):
+        """Test generate_next_occurrence for daily recurring tasks."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        
+        # Get a daily task
+        all_tasks = owner.get_all_tasks()
+        daily_task = next(t for t in all_tasks if t.frequency == "daily")
+        
+        today = date.today()
+        next_future_date = today + timedelta(days=1)
+        
+        next_task = daily_task.generate_next_occurrence()
+        
+        assert next_task is not None
+        assert next_task.frequency == "daily"
+        assert next_task.completed is False
+    
+    def test_generate_next_occurrence_weekly_task(self, setup_for_algorithms):
+        """Test generate_next_occurrence for weekly recurring tasks."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        
+        # Get a weekly task
+        all_tasks = owner.get_all_tasks()
+        weekly_task = next(t for t in all_tasks if t.frequency == "weekly")
+        
+        next_task = weekly_task.generate_next_occurrence()
+        
+        assert next_task is not None
+        assert next_task.frequency == "weekly"
+        assert next_task.completed is False
+        # Weekly task should have same properties as original
+        assert next_task.name == weekly_task.name
+        assert next_task.duration == weekly_task.duration
+        assert next_task.priority == weekly_task.priority
+    
+    def test_generate_next_occurrence_preserves_task_properties(self, setup_for_algorithms):
+        """Test that generate_next_occurrence preserves key task properties."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        
+        task = Task(
+            name="Daily Training", duration=20, priority=4,
+            category="training", pet_id="Max", frequency="daily"
+        )
+        
+        next_task = task.generate_next_occurrence()
+        
+        # Verify properties are preserved
+        assert next_task.name == task.name
+        assert next_task.duration == task.duration
+        assert next_task.priority == task.priority
+        assert next_task.category == task.category
+        assert next_task.pet_id == task.pet_id
+        assert next_task.frequency == task.frequency
+        assert next_task.completed is False
+    
+    def test_combined_filtering_and_sorting(self, setup_for_algorithms):
+        """Test combining multiple algorithms: filter then sort."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        all_tasks = owner.get_all_tasks()
+        
+        # Filter dog tasks by completion status, then sort by urgency
+        dog_tasks = scheduler.filter_by_pet("Max", all_tasks)
+        dog_incomplete = scheduler.filter_by_completion_status(False, dog_tasks)
+        dog_sorted = scheduler.sort_by_urgency(dog_incomplete)
+        
+        # Verify order
+        assert len(dog_sorted) > 0
+        assert all(task.pet_id == "Max" for task in dog_sorted)
+        assert all(not task.completed for task in dog_sorted)
+        
+        # Verify urgency ordering
+        urgency_scores = [task.get_urgency_score() for task in dog_sorted]
+        assert urgency_scores == sorted(urgency_scores, reverse=True)
+    
+    def test_algorithm_workflow_realistic_scenario(self, setup_for_algorithms):
+        """Test realistic workflow: get daily tasks, sort by urgency, detect conflicts."""
+        owner, dog, cat, scheduler = setup_for_algorithms
+        
+        # Get all tasks
+        all_tasks = owner.get_all_tasks()
+        
+        # Sort by urgency
+        urgent_tasks = scheduler.sort_by_urgency(all_tasks)
+        
+        # Create a schedule and assign time slots
+        schedule = Schedule(date.today(), owner)
+        for i, task in enumerate(urgent_tasks):
+            hours = 8 + (i // 2)
+            minutes = (i % 2) * 30
+            task.scheduled_time = f"{hours:02d}:{minutes:02d}"
+            schedule.add_task(task)
+        
+        # Detect any conflicts
+        conflicts = scheduler.detect_conflicts(schedule)
+        
+        # With our spacing (30 min intervals), we shouldn't have conflicts
+        assert len(conflicts) == 0

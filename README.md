@@ -67,3 +67,66 @@ PawPal+ now includes intelligent algorithmic features:
 - Automatic time slot assignment starting at 8:00 AM
 - Sequential task scheduling based on duration
 - Readable schedule display with times (e.g., "08:00 | Morning walk | 30 min")
+
+## Testing PawPal+ (Phase 5)
+
+PawPal+ has comprehensive test coverage ensuring reliability and correctness across all features.
+
+### Running Tests
+
+```bash
+# Run all tests
+python3 -m pytest tests/test_pawpal.py -v
+
+# Run tests for a specific class
+python3 -m pytest tests/test_pawpal.py::TestScheduler -v
+
+# Run tests for Phase 4 algorithms only
+python3 -m pytest tests/test_pawpal.py::TestPhase4Algorithms -v
+```
+
+### Test Coverage
+
+**62 tests** covering all system components:
+
+#### Phase 1-3: Core System (45 tests)
+- **Owner Management** (7 tests): Creation, pet aggregation, task collection, preferences
+- **Pet Management** (8 tests): Creation, care needs by type, task management
+- **Task Management** (11 tests): Urgency scoring, completion tracking, frequency handling, pet matching
+- **Schedule Planning** (8 tests): Feasibility checks, duration calculation, task ordering
+- **Scheduler Algorithm** (10 tests): Task filtering, arrangement, plan generation, validation
+- **Integration Tests** (1 test): Full workflow from owner creation to daily plan generation
+
+#### Phase 4: Algorithmic Layer (17 tests)
+- **Sorting Algorithms** (4 tests): By urgency score, by time, handling edge cases
+- **Filtering Algorithms** (6 tests): By pet, by completion status, by priority
+- **Conflict Detection** (3 tests): Identifying same-time tasks, handling conflicts
+- **Recurring Tasks** (3 tests): Daily/weekly recurrence, property preservation
+- **Combined Workflows** (1 test): Filter + sort + conflict check in realistic scenarios
+
+### Test Strategies
+
+1. **Unit Testing**: Individual class methods tested in isolation
+2. **Integration Testing**: Multi-class workflows tested end-to-end
+3. **Edge Case Coverage**: Empty lists, null values, boundary priority levels
+4. **Algorithm Verification**: Sorting order, filtering accuracy, conflict detection
+
+### Running Demos
+
+```bash
+# CLI demo with owner, pets, and schedule
+python3 main.py
+
+# Phase 4 algorithms demo
+python3 phase4_demo.py
+```
+
+### Confidence Level
+
+**⭐⭐⭐⭐⭐ (5/5 stars)**
+
+- All 62 tests passing consistently
+- Phase 4 algorithms verified by both tests and demo script
+- Edge cases covered (empty lists, conflicts, boundaries)
+- Manual UI testing shows correct integration with Streamlit
+- Full system workflow validated from owner creation to schedule generation
