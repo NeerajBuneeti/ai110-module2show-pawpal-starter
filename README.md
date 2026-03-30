@@ -59,6 +59,28 @@ Your final app should:
 - **Interactive Pet Management** - Quick add/remove pets with inline display
 - **Comprehensive Task Breakdown** - Detailed view with urgency scores, categories, and status
 
+### Advanced Features (Challenge 2 & 3)
+
+#### Challenge 2: Data Persistence 💾
+- **JSON Serialization** - Save all pets and tasks to `data.json` automatically
+- **Auto-Load on Startup** - App loads saved data when restarted, no data loss
+- **Full State Preservation** - Maintains all pet info, task details, and scheduling state
+- **Manual Save/Load** - Methods available for custom save/load workflows
+
+To test data persistence:
+```bash
+python3 test_persistence.py
+```
+
+#### Challenge 3: Priority-Based UI Colors 🎨
+- **Priority Color Coding** - Tasks show emoji indicators:
+  - 🔴 **High** (Priority 4-5)
+  - 🟡 **Medium** (Priority 3)  
+  - 🟢 **Low** (Priority 1-2)
+- **Enhanced Task Visibility** - Quickly identify high-priority tasks at a glance
+- **Consistent Throughout UI** - Color coding applied in task tables and schedule breakdown
+- **Visual Schedule Clarity** - Priority level displayed prominently in daily schedule
+
 ## Getting started
 
 ### Setup
@@ -83,6 +105,82 @@ python3 main.py
 
 # Phase 4 algorithms demo (sorting, filtering, conflicts, recurrence)
 python3 phase4_demo.py
+
+# Data persistence test (Challenge 2)
+python3 test_persistence.py
+```
+
+## Implementation Notes: Using AI for Advanced Features
+
+### Challenge 2: Data Persistence Implementation
+
+**Approach:** Used Copilot to design a clean JSON serialization pattern.
+
+**Prompt Used:** 
+> "Add `to_dict()` and `from_dict()` methods to the Owner class in pawpal_system.py that handle nested Pet and Task objects. Make sure dates are converted to ISO format strings for JSON compatibility."
+
+**Copilot's Solution:**
+- `to_dict()` - Recursively converts the entire owner object tree to nested dictionaries
+- `from_dict()` - Reconstructs the full owner hierarchy from dictionaries
+- Handles date serialization using ISO format (`date.fromisoformat()`)
+- Type-safe restoration of all task properties
+
+**Integration:** 
+- Added `save_owner_data()` and `load_owner_data()` helper functions in `app.py`
+- App loads from `data.json` at startup (if exists)
+- Saves to `data.json` after any pet/task modification
+- No database required—simple JSON provides sufficient persistence
+
+**Why This Approach:**
+- JSON is human-readable and easily debugged
+- Python's `dataclass` fields map directly to dict keys
+- Zero external dependencies (no marshmallow, no SQLite)
+- Fast enough for a daily scheduler (file I/O is negligible)
+
+### Challenge 3: Priority-Based Color Coding
+
+**Approach:** Added visual indicators using emoji-based priority labels.
+
+**Implementation:**
+```python
+def get_priority_display(priority: int) -> str:
+    """Return emoji and label for priority level."""
+    if priority >= 4:
+        return "🔴 High"
+    elif priority >= 3:
+        return "🟡 Medium"
+    else:
+        return "🟢 Low"
+```
+
+**Applied Throughout UI:**
+- Task lists show priority with color emoji
+- Schedule breakdown displays priority level prominently  
+- Consistent visual language across all views
+
+**Why Emojis:**
+- Streamlit natively supports emoji rendering
+- Emojis are color-blind friendly (shape + color redundancy)
+- Visual scanning is faster than reading "Priority 4/5"
+- Works across multiple languages
+
+## Running the App
+
+```bash
+streamlit run app.py
+```
+
+### Running Demos
+
+```bash
+# CLI demo with owner, pets, and schedule
+python3 main.py
+
+# Phase 4 algorithms demo (sorting, filtering, conflicts, recurrence)
+python3 phase4_demo.py
+
+# Data persistence test (Challenge 2)
+python3 test_persistence.py
 ```
 
 ## System Architecture

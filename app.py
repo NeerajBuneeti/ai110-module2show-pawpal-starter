@@ -1,6 +1,31 @@
 import streamlit as st
 from pawpal_system import Owner, Pet, Task, Schedule, Scheduler
 from datetime import date
+import json
+import os
+
+# Helper function for priority indicators
+def get_priority_display(priority: int) -> str:
+    """Return emoji and label for priority level."""
+    if priority >= 4:
+        return "🔴 High"
+    elif priority >= 3:
+        return "🟡 Medium"
+    else:
+        return "🟢 Low"
+
+def save_owner_data(owner: Owner, filename: str = "data.json") -> None:
+    """Save owner data to JSON file."""
+    with open(filename, "w") as f:
+        json.dump(owner.to_dict(), f, indent=2)
+
+def load_owner_data(filename: str = "data.json") -> Owner | None:
+    """Load owner data from JSON file if it exists."""
+    if os.path.exists(filename):
+        with open(filename, "r") as f:
+            data = json.load(f)
+            return Owner.from_dict(data)
+    return None
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="wide")
 
@@ -8,11 +33,17 @@ st.title("🐾 PawPal+")
 
 # Initialize session state with Owner instance
 if "owner" not in st.session_state:
-    st.session_state.owner = Owner(
-        name="Jordan",
-        available_time_per_day=120,
-        preferences={}
-    )
+    # Try to load saved data, fall back to default
+    loaded_owner = load_owner_data()
+    if loaded_owner:
+        st.session_state.owner = loaded_owner
+        st.info("✓ Loaded saved pets and tasks!")
+    else:
+        st.session_state.owner = Owner(
+            name="Jordan",
+            available_time_per_day=120,
+            preferences={}
+        )
 
 owner = st.session_state.owner
 
@@ -68,6 +99,7 @@ with col1:
                 with col_tasks:
                     if st.button("Remove", key=f"remove_pet_{i}"):
                         owner.pets.pop(i)
+                        save_owner_data(owner)
                         st.rerun()
     else:
         st.info("No pets yet. Add one below!")
@@ -81,6 +113,7 @@ with col2:
     if st.button("➕ Add Pet", key="add_pet_button"):
         new_pet = Pet(name=pet_name, pet_type=pet_type, age=pet_age)
         owner.add_pet(new_pet)
+        save_owner_data(owner)
         st.success(f"✓ Added {pet_name}!")
         st.rerun()
 
@@ -134,6 +167,7 @@ if owner.pets:
             description=description
         )
         selected_pet.add_task(new_task)
+        save_owner_data(owner)
         st.success(f"✓ Added '{task_name}' for {selected_pet.name}!")
         st.rerun()
     
@@ -190,14 +224,14 @@ if owner.pets:
                 "Pet": task.pet_id,
                 "Task": task.name,
                 "Duration": f"{task.duration} min",
-                "Priority": f"{task.priority}/5",
+                "Priority": get_priority_display(task.priority),
+                "Urgency Score": f"{task.get_urgency_score():.1f}",
                 "Category": task.category,
                 "Frequency": task.frequency,
-                "Urgency Score": f"{task.get_urgency_score():.1f}",
                 "Status": "✓ Done" if task.completed else "○ Pending"
             })
         
-        st.dataframe(task_display, width='stretch')
+        st.dataframe(task_display, width='stretch', use_container_width=True)
         st.caption(f"Showing {len(task_display)} of {len(all_tasks)} tasks")
     else:
         st.info("No tasks yet. Add one above!")
@@ -296,7 +330,7 @@ if "current_schedule" in st.session_state:
                     st.metric("Duration", f"{task.duration}m")
                 
                 with col3:
-                    st.metric("Priority", f"{task.priority}/5")
+                    st.metric("Priority Level", get_priority_display(task.priority))
                 
                 with col4:
                     urgency = task.get_urgency_score()
