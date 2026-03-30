@@ -224,3 +224,104 @@ Why these tests mattered:
 This is how professional systems are built: core logic is decoupled from presentation. The UI is just a client that calls methods on the backend classes. This separation also made Phase 3 (UI integration) straightforward—just import and call methods.
 
 Secondary takeaway: **Simple algorithms > complex algorithms for day-to-day use.** The greedy urgency-based sort beats over-engineered bin packing because it's transparent, fast, and good enough. "Good enough" is often better than "perfect."
+
+---
+
+## 6. AI Strategy and Collaboration
+
+### Which Copilot Features Were Most Effective?
+
+**Three features stood out as critical:**
+
+1. **Code Generation at Scale** - When asked, "Write a complete Task class with urgency scoring, completion tracking, and frequency handling," Copilot generated ~40 lines of correct, type-hinted Python with docstring-level clarity. **Result:** Saved ~2 hours vs. writing from scratch, and the code was production-quality.
+
+2. **Test Suite Generation** - Instead of manually writing 45 tests, I prompted: "Write comprehensive pytest tests for Owner, Pet, Task, Schedule, and Scheduler classes covering creation, data access, scheduling logic, and edge cases." Copilot generated the entire test suite with excellent coverage. **Result:** All 45 tests passed first time; saved ~4 hours.
+
+3. **Debugging and Refinement** - When I introduced new fields (scheduled_time, due_date) in Phase 4, instead of running wild with changes, I asked Copilot: "I'm extending Task with scheduled_time field. How should I refactor without breaking existing tests?" Copilot suggested making fields optional with defaults. **Result:** Zero test breakage, backward compatibility maintained.
+
+**Less effective:**
+- Architectural suggestions not requested - Copilot sometimes suggested features (middleware layers, database schemas) I didn't need. Required discipline to ignore.
+- Overly generic explanations - When I asked "What's an urgency score?", Copilot gave a Wikipedia-level explanation instead of task-specific reasoning.
+
+### Specific Example: Rejected AI Suggestion (and Why)
+
+**The Suggestion:** 
+AI proposed: "Use Python dataclass validators to enforce priority 1-5 and duration > 0 at instantiation time. This prevents invalid state."
+
+**My Decision:** Rejected
+
+**Reasoning:**
+- ❌ Validators add boilerplate (try/except blocks, custom exception types)
+- ❌ Streamlit users enter form data as strings; validation at UI boundary is better
+- ❌ Testing becomes harder: must test validator logic separately
+- ✓ Simple approach: Set attributes freely, validate at method call (e.g., when sorting by urgency, skip 0-duration tasks)
+
+**Verification:**
+I traced through the actual user flow: (1) UI collects form data → (2) creates Task object → (3) calls scheduler.generate_daily_plan(). Validator at step 2 would catch errors, but step 3 is where we actually use the data. Validation at step 3 is simpler and sufficient.
+
+**Lesson Learned:** Copilot generates robust, production-ready code by default. But "production-ready" doesn't mean "right for this context." A daily scheduler for a pet owner doesn't need the defensive programming a financial transaction system needs. This is where human judgment matters.
+
+### How Did Separate Chat Sessions For Different Phases Help?
+
+**Clear Separation Strategy:**
+- **Phase 1 Chat:** "Design me a UML for a pet care scheduler." Focus: architecture only
+- **Phase 2 Chat:** "Here's the UML. Implement it in Python with urgency scoring." Focus: business logic
+- **Phase 3 Chat:** "I have pawpal_system.py. Connect it to Streamlit." Focus: UI integration
+- **Phase 4 Chat:** "Add sorting, filtering, conflict detection." Focus: algorithms
+- **Phase 5 Chat:** "Write tests for Phase 4." Focus: verification
+- **Phase 6 Chat:** "Polish UI and reflection." Focus: documentation
+
+**Benefits:**
+1. **Context Clarity** - Each session started fresh with "Here's what we have. Do X." No confusion about prior decisions.
+2. **Scope Creep Prevention** - In Phase 2, I didn't ask "How do I connect Streamlit?" Staying focused meant better code.
+3. **Teachability** - Each session produced a coherent artifact (UML doc, implementation, test suite) that could be understood independently.
+4. **Easy Rollback** - If something in Phase 4 broke tests, I could reference Phase 2's pristine test suite.
+5. **Knowledge Accumulation** - By Phase 6, Copilot had seen all prior work. It could ask "Do you want me to cross-reference the Phase 4 algorithms in reflection.md?"
+
+**Without Session Separation:** The conversation would've been 200+ exchanges long, context would bleed across topics, and I'd have asked "Why did we do X?" multiple times.
+
+### What I Learned About Being the "Lead Architect" With AI
+
+**Key Insights:**
+
+1. **You Remain the Gatekeeper** - AI is a code-generation assistant, not a decision-maker. I made every architectural choice:
+   - Choose Owner→Pet→Task hierarchy? ✓ Me
+   - Use greedy packing vs. optimal scheduling? ✓ Me
+   - Separate business logic from UI? ✓ Me
+   - Add recurring task automation? ✓ Me
+   
+   Copilot executed these decisions flawlessly, but I set the direction.
+
+2. **Leverage AI's Strengths, Compensate for Weaknesses** - 
+   - **Strength:** Generate code fast and correctly. **Use for:** Class stubs, algorithms, test suites
+   - **Weakness:** Lacks context about your specific constraints. **Compensate:** Always review suggestions against requirements
+   - **Strength:** Explain tradeoffs. **Use for:** Understanding algorithm options
+   - **Weakness:** No knowledge of your codebase evolution. **Compensate:** Copy relevant code snippets into prompts
+
+3. **Good Prompts > Good Models** - I spent more time writing clear prompts than waiting for responses:
+   - ❌ Bad: "Write scheduling code"
+   - ✓ Good: "Sort tasks by (priority × 1.5 if daily else 1.0), pack greedily into 120-minute time budget, drop tasks that don't fit, explain reasoning."
+   
+   The second prompt generates exactly what I need.
+
+4. **Trust But Verify** - Copilot's code passed 45/45 tests first time. But I reviewed:
+   - Does it match my design (5 classes, specific method names)? ✓
+   - Are edge cases handled (empty list, division by zero)? ✓
+   - Is it readable (variable names, structure)? ✓
+   - Can I explain every line? ✓ (If not, I knew I needed to refactor)
+
+5. **The Human's Unique Role**
+   - AI cannot say "This problem doesn't need solving." Only you can identify over-engineering.
+   - AI cannot prioritize trade-offs (greedy vs. optimal). Only you can decide based on your constraints.
+   - AI cannot reject its own suggestion. Only you can say "No, too complex."
+   - AI cannot learn from failure. Only you can reflect on what worked, document it, and adjust.
+
+**The Bigger Picture:**
+Building PawPal+ with Copilot taught me that **AI is a force multiplier, not a replacement**. A mediocre engineer with Copilot produces mediocre code faster. A strong engineer with Copilot produces excellent systems at 3x normal speed because:
+- Copilot handles the "grunt work" (boilerplate, tests, UI plumbing)
+- You focus on the "hard work" (system design, tradeoffs, verification)
+- You can afford to iterate—"Let me rewrite this section for clarity" takes 5 minutes, not an hour
+
+**Final Reflection:**
+I started Phase 1 asking Copilot to design the system. By Phase 6, I was asking it to implement my vision. That shift—from "help me think" to "implement what I've thought"—is the mark of a leader working well with AI. The tool is powerful only when you know exactly what you want and can articulate it clearly.
+

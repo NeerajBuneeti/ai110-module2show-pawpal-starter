@@ -22,6 +22,43 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## Features
+
+### Core Functionality
+- ✅ **Owner Management** - Set available time per day, manage preferences
+- ✅ **Pet Management** - Add/remove pets with type (dog, cat, rabbit, bird, hamster), age, and preferences
+- ✅ **Task Management** - Create tasks with duration, priority (1-5), category, and frequency (daily/weekly/as-needed)
+- ✅ **Daily Schedule Generation** - Automatically creates optimized schedule within time constraints
+- ✅ **Schedule Explanation** - Shows reasoning behind task ordering and why tasks were/weren't included
+
+### Smart Algorithms (Phase 4)
+#### Sorting
+- **Sort by Urgency Score** - Tasks prioritized by `priority × frequency_multiplier` (daily tasks get 1.5x boost)
+- **Sort by Time** - Tasks ordered chronologically by scheduled HH:MM time
+
+#### Filtering  
+- **Filter by Pet** - View tasks for a specific pet
+- **Filter by Priority** - Show only high-priority tasks (≥ threshold)
+- **Filter by Status** - Separate completed vs. incomplete tasks
+
+#### Intelligent Scheduling
+- **Automated Time Slot Assignment** - Tasks assigned sequential time slots starting at 8:00 AM
+- **Conflict Detection** - Warns when tasks are scheduled at the same time
+- **Feasibility Validation** - Ensures schedules don't exceed owner's available time
+
+#### Recurring Tasks
+- **Daily Task Automation** - Daily tasks automatically recreate for tomorrow when marked complete
+- **Weekly Task Automation** - Weekly tasks auto-generate 7 days later
+- **Property Preservation** - Recurring tasks inherit duration, priority, and category
+
+### UI Features (Phase 6)
+- **Smart Task View** - Inline sorting and filtering without page refresh
+- **Visual Metrics** - Dashboard showing scheduled tasks, total time, feasibility status
+- **Time-Based Display** - Schedule shows specific time slots (08:00, 08:30, etc.)
+- **Conflict Warnings** - Highlighted alerts when scheduling conflicts detected
+- **Interactive Pet Management** - Quick add/remove pets with inline display
+- **Comprehensive Task Breakdown** - Detailed view with urgency scores, categories, and status
+
 ## Getting started
 
 ### Setup
@@ -32,7 +69,38 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Suggested workflow
+### Running the App
+
+```bash
+streamlit run app.py
+```
+
+### Running Demos
+
+```bash
+# CLI demo with owner, pets, and schedule
+python3 main.py
+
+# Phase 4 algorithms demo (sorting, filtering, conflicts, recurrence)
+python3 phase4_demo.py
+```
+
+## System Architecture
+
+See [uml_diagram.md](uml_diagram.md) for the complete UML class diagram showing:
+- 5-class architecture: Owner, Pet, Task, Schedule, Scheduler
+- Class relationships and dependencies
+- All methods including Phase 4 algorithms
+- Design principles and separation of concerns
+
+Quick overview:
+- **Owner** - Manages time constraints and pet aggregation
+- **Pet** - Represents pet characteristics and care needs
+- **Task** - Individual care activity with priority and urgency
+- **Schedule** - Daily plan with feasibility validation
+- **Scheduler** - Orchestrates scheduling algorithm with sorting, filtering, and conflict detection
+
+## Suggested workflow
 
 1. Read the scenario carefully and identify requirements and edge cases.
 2. Draft a UML diagram (classes, attributes, methods, relationships).

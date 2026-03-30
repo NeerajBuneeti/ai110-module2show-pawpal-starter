@@ -144,8 +144,48 @@ if owner.pets:
     all_tasks = owner.get_all_tasks()
     
     if all_tasks:
+        # Smart task view with sorting and filtering options
+        col1, col2, col3 = st.columns(3)
+        
+        view_mode = "default"
+        with col1:
+            sort_by = st.radio("Sort by", ["Urgency Score", "Time", "Default"], key="sort_mode")
+            if sort_by == "Urgency Score":
+                view_mode = "urgency"
+            elif sort_by == "Time":
+                view_mode = "time"
+        
+        with col2:
+            pet_filter = st.selectbox("Filter by pet", ["All Pets"] + [p.name for p in owner.pets], key="pet_filter")
+        
+        with col3:
+            status_filter = st.radio("Show", ["All", "Incomplete Only", "Completed Only"], key="status_filter")
+        
+        # Apply filters
+        filtered_tasks = all_tasks
+        
+        if pet_filter != "All Pets":
+            scheduler = Scheduler(owner)
+            filtered_tasks = scheduler.filter_by_pet(pet_filter, filtered_tasks)
+        
+        if status_filter == "Incomplete Only":
+            scheduler = Scheduler(owner)
+            filtered_tasks = scheduler.filter_by_completion_status(False, filtered_tasks)
+        elif status_filter == "Completed Only":
+            scheduler = Scheduler(owner)
+            filtered_tasks = scheduler.filter_by_completion_status(True, filtered_tasks)
+        
+        # Apply sorting
+        if view_mode == "urgency":
+            scheduler = Scheduler(owner)
+            filtered_tasks = scheduler.sort_by_urgency(filtered_tasks)
+        elif view_mode == "time":
+            scheduler = Scheduler(owner)
+            filtered_tasks = scheduler.sort_by_time(filtered_tasks)
+        
+        # Display tasks
         task_display = []
-        for task in all_tasks:
+        for task in filtered_tasks:
             task_display.append({
                 "Pet": task.pet_id,
                 "Task": task.name,
@@ -153,9 +193,12 @@ if owner.pets:
                 "Priority": f"{task.priority}/5",
                 "Category": task.category,
                 "Frequency": task.frequency,
-                "Urgency Score": f"{task.get_urgency_score():.1f}"
+                "Urgency Score": f"{task.get_urgency_score():.1f}",
+                "Status": "✓ Done" if task.completed else "○ Pending"
             })
+        
         st.dataframe(task_display, width='stretch')
+        st.caption(f"Showing {len(task_display)} of {len(all_tasks)} tasks")
     else:
         st.info("No tasks yet. Add one above!")
 
@@ -222,28 +265,44 @@ if "current_schedule" in st.session_state:
     explanation = scheduler.explain_reasoning(schedule)
     st.text(explanation)
     
+    # Conflict detection
+    conflicts = scheduler.detect_conflicts(schedule)
+    if conflicts:
+        st.divider()
+        with st.container(border=True):
+            st.warning("⚠️ **Task Conflicts Detected**")
+            for conflict_msg in conflicts:
+                st.write(f"• {conflict_msg}")
+    
     st.divider()
     
-    # Detailed task breakdown
-    st.subheader("Task Breakdown")
+    # Detailed task breakdown with time slots
+    st.subheader("Task Breakdown with Time Slots")
     
     if schedule.tasks:
-        for i, task in enumerate(schedule.get_ordered_tasks(), 1):
+        # Sort by time for display
+        time_sorted = scheduler.sort_by_time(schedule.get_ordered_tasks())
+        
+        for i, task in enumerate(time_sorted, 1):
             with st.container(border=True):
-                col1, col2, col3 = st.columns([2, 1, 1])
+                col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
                 
                 with col1:
-                    st.write(f"**{i}. {task.name}** • Pet: {task.pet_id}")
-                    st.caption(task.description if task.description else task.category)
+                    time_display = f"({task.scheduled_time})" if task.scheduled_time else "(No time)"
+                    st.write(f"**{i}. {task.name}** {time_display}")
+                    st.caption(f"Pet: {task.pet_id} • {task.description if task.description else task.category}")
                 
                 with col2:
-                    st.metric("Duration", f"{task.duration} min")
+                    st.metric("Duration", f"{task.duration}m")
                 
                 with col3:
+                    st.metric("Priority", f"{task.priority}/5")
+                
+                with col4:
                     urgency = task.get_urgency_score()
                     st.metric("Urgency", f"{urgency:.1f}")
                 
-                st.caption(f"Priority: {task.priority}/5 • Frequency: {task.frequency} • Category: {task.category}")
+                st.caption(f"Frequency: {task.frequency} • Category: {task.category}")
     else:
         st.info("No tasks fit within your available time.")
     
