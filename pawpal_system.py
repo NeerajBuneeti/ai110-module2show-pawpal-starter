@@ -10,8 +10,8 @@ This module contains the main classes for the PawPal+ pet care planning system:
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
-from datetime import date
+from typing import List, Dict, Optional, Tuple
+from datetime import date, timedelta
 
 
 @dataclass
@@ -94,6 +94,8 @@ class Task:
     frequency: str = "daily"  # e.g., "daily", "weekly", "as needed"
     description: str = ""
     completed: bool = False  # Track if task is completed
+    scheduled_time: Optional[str] = None  # HH:MM format time slot
+    due_date: Optional[date] = None  # Date task is due
     
     def get_duration(self) -> int:
         """Return task duration in minutes."""
@@ -127,6 +129,36 @@ class Task:
     def mark_incomplete(self) -> None:
         """Mark the task as incomplete."""
         self.completed = False
+    
+    def generate_next_occurrence(self) -> Optional['Task']:
+        """Create next occurrence for recurring tasks (daily/weekly)."""
+        if self.frequency == "as needed":
+            return None  # No automatic recurrence for "as needed"
+        
+        # Calculate next due date
+        if self.due_date is None:
+            next_due = date.today()
+        else:
+            if self.frequency == "daily":
+                next_due = self.due_date + timedelta(days=1)
+            elif self.frequency == "weekly":
+                next_due = self.due_date + timedelta(weeks=1)
+            else:
+                return None
+        
+        # Create new task instance with same properties
+        return Task(
+            name=self.name,
+            duration=self.duration,
+            priority=self.priority,
+            category=self.category,
+            pet_id=self.pet_id,
+            frequency=self.frequency,
+            description=self.description,
+            completed=False,
+            scheduled_time=None,
+            due_date=next_due
+        )
 
 
 @dataclass
@@ -179,6 +211,60 @@ class Scheduler:
         """Filter tasks applicable for today based on frequency."""
         return [task for task in self.tasks if task.is_required_today()]
     
+    def sort_by_urgency(self, tasks: List[Task] = None) -> List[Task]:
+        """Sort tasks by urgency score in descending order (highest urgency first)."""
+        if tasks is None:
+            tasks = self.get_tasks_for_today()
+        return sorted(tasks, key=lambda t: t.get_urgency_score(), reverse=True)
+    
+    def sort_by_time(self, tasks: List[Task] = None) -> List[Task]:
+        """Sort tasks by scheduled time in HH:MM format."""
+        if tasks is None:
+            tasks = [t for t in self.get_tasks_for_today() if t.scheduled_time is not None]
+        return sorted(
+            tasks,
+            key=lambda t: (t.scheduled_time or "23:59")  # Tasks without time go to end
+        )
+    
+    def filter_by_pet(self, pet_name: str, tasks: List[Task] = None) -> List[Task]:
+        """Filter tasks belonging to a specific pet."""
+        if tasks is None:
+            tasks = self.get_tasks_for_today()
+        return [task for task in tasks if task.pet_id == pet_name]
+    
+    def filter_by_completion_status(self, completed: bool, tasks: List[Task] = None) -> List[Task]:
+        """Filter tasks by completion status."""
+        if tasks is None:
+            tasks = self.get_tasks_for_today()
+        return [task for task in tasks if task.completed == completed]
+    
+    def filter_by_priority(self, min_priority: int, tasks: List[Task] = None) -> List[Task]:
+        """Filter tasks with priority >= min_priority."""
+        if tasks is None:
+            tasks = self.get_tasks_for_today()
+        return [task for task in tasks if task.priority >= min_priority]
+    
+    def detect_conflicts(self, schedule: Schedule) -> List[str]:
+        """Detect if tasks in schedule have time conflicts (exact time overlap)."""
+        conflicts = []
+        scheduled_tasks = schedule.get_ordered_tasks()
+        
+        # Check for tasks scheduled at the same time
+        time_slots = {}
+        for task in scheduled_tasks:
+            if task.scheduled_time:
+                if task.scheduled_time in time_slots:
+                    conflicts.append(
+                        f"⚠️  CONFLICT: '{task.name}' ({task.pet_id}) and "
+                        f"'{time_slots[task.scheduled_time]['name']}' "
+                        f"({time_slots[task.scheduled_time]['pet']}) "
+                        f"both scheduled at {task.scheduled_time}"
+                    )
+                else:
+                    time_slots[task.scheduled_time] = {"name": task.name, "pet": task.pet_id}
+        
+        return conflicts
+    
     def generate_daily_plan(self, target_date: date = None) -> Schedule:
         """Generate optimized daily schedule respecting time and priority constraints."""
         if target_date is None:
@@ -188,8 +274,15 @@ class Scheduler:
         today_tasks = self.get_tasks_for_today()
         arranged_tasks = self.arrange_tasks(self.owner.available_time_per_day, today_tasks)
         
+        # Add tasks and assign time slots (simplified: evenly distribute across day)
+        current_time_minutes = 480  # Start at 8:00 AM
         for task in arranged_tasks:
             schedule.add_task(task)
+            # Assign task to time slot
+            hours = current_time_minutes // 60
+            minutes = current_time_minutes % 60
+            task.scheduled_time = f"{hours:02d}:{minutes:02d}"
+            current_time_minutes += task.duration
         
         return schedule
     
@@ -224,8 +317,16 @@ class Scheduler:
         explanation += f"(Available: {self.owner.available_time_per_day} minutes)\n\n"
         
         for i, task in enumerate(schedule.get_ordered_tasks(), 1):
-            explanation += f"{i}. {task.name} ({task.duration} min) - Priority: {task.priority}/5\n"
+            time_slot = f" @ {task.scheduled_time}" if task.scheduled_time else ""
+            explanation += f"{i}. {task.name}{time_slot} ({task.duration} min) - Priority: {task.priority}/5\n"
             explanation += f"   Category: {task.category} | Frequency: {task.frequency}\n"
+        
+        # Check for conflicts
+        conflicts = self.detect_conflicts(schedule)
+        if conflicts:
+            explanation += "\n" + "⚠️  DETECTED CONFLICTS:\n"
+            for conflict in conflicts:
+                explanation += conflict + "\n"
         
         if not schedule.is_feasible():
             explanation += "\n⚠️  WARNING: Schedule exceeds available time!\n"

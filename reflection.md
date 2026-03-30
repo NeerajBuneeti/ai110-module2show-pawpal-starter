@@ -50,6 +50,15 @@
 - Built multi-section UI: Owner Settings, Pet Management, Task Management, Schedule Generation
 - Wired all UI buttons to actual class methods (add_pet, add_task, generate_daily_plan)
 
+**Phase 4 Algorithmic Layer:**
+- Extended Task class with scheduled_time and due_date fields for time-based operations
+- Added Task.generate_next_occurrence() for automated recurring task creation (daily/weekly)
+- Extended Scheduler with sorting algorithms: sort_by_urgency(), sort_by_time()
+- Added filtering algorithms: filter_by_pet(), filter_by_completion_status(), filter_by_priority()
+- Implemented conflict detection: detect_conflicts() identifies tasks scheduled at same time
+- Updated generate_daily_plan() to auto-assign time slots (8:00 AM start, sequential scheduling)
+- Enhanced explain_reasoning() to show scheduled times and warn about conflicts
+
 ---
 
 ## 2. Scheduling Logic and Tradeoffs
@@ -77,6 +86,16 @@ Decision priority: Time > Urgency Score > Frequency
 - Current: frequency_multiplier is hardcoded (daily=1.5x, weekly=1.0x)
 - Alternative: Could learn from user preferences or time-of-year patterns
 - Rationale: Start simple. Fixed multiplier is predictable and easy to explain. Dynamic weights would require data collection and add complexity users don't need yet.
+
+**Tradeoff 3 (Phase 4): Exact Time Conflict Detection vs. Overlapping Duration Check**
+- Current approach: Detect only tasks with identical scheduled_time (e.g., both @ 08:00)
+- Alternative: Check overlapping time windows (e.g., task 1: 08:00-08:30, task 2: 08:15-08:45 = overlap)
+- Rationale: Exact match is O(n) and simple. Overlap checking would be O(n²) and add complexity. Exact matches catch most real conflicts in practice; users can manually adjust if needed.
+
+**Tradeoff 4 (Phase 4): Sequential Time Slot Assignment vs. Custom Time Slots**
+- Current: Tasks assigned sequentially starting at 8:00 AM, each after the previous one finishes
+- Alternative: Let users specify preferred times (morning vs evening, before/after work)
+- Rationale: Sequential is deterministic and requires no user input. Custom slots would need a scheduler preference system. Phase 4 focuses on automated scheduling; custom slots can be Phase 5 feature.
 
 ---
 
