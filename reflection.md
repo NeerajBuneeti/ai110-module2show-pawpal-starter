@@ -4,13 +4,40 @@
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+### Core User Actions
+1. Add/manage a pet - Enter pet info (name, type, age, preferences)
+2. Add/edit pet care tasks - Create tasks with duration and priority
+3. Generate daily schedule - Produce optimized daily plan respecting constraints
+
+### UML Classes (5-class architecture)
+
+1. **Owner** - Pet owner with time constraints and preferences
+   - Attributes: name, available_time_per_day, preferences, pets list
+   - Methods: get_available_time(), set_preferences(), get_info(), add_pet(), get_all_tasks()
+   - Responsibility: Define constraints, manage pets, aggregate tasks
+
+2. **Pet** - Pet with care needs and task list
+   - Attributes: name, pet_type, age, preferences, dietary_needs, tasks list
+   - Methods: get_info(), update_preferences(), get_care_needs(), add_task()
+   - Responsibility: Represent pet characteristics and needs
+
+3. **Task** - Care activity with priority and duration
+   - Attributes: name, duration, priority (1-5), category, pet_id, frequency, completed status
+   - Methods: get_duration(), matches_pet_needs(), get_urgency_score(), is_required_today(), mark_complete()
+   - Responsibility: Define individual tasks with priority and state tracking
+
+4. **Schedule** - Daily plan with ordered tasks
+   - Attributes: date, owner reference, tasks list, task_order, total_time
+   - Methods: add_task(), remove_task(), get_total_duration(), is_feasible(), get_ordered_tasks()
+   - Responsibility: Build, validate, and order daily schedules
+
+5. **Scheduler** - Orchestrates scheduling algorithm
+   - Methods: get_tasks_for_today(), generate_daily_plan(), arrange_tasks(), explain_reasoning(), validate_schedule()
+   - Responsibility: Core scheduling algorithm balancing priorities and constraints
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+(To be filled in during implementation phase)
 
 ---
 
